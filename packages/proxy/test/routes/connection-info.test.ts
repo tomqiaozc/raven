@@ -50,6 +50,33 @@ describe("GET /api/connection-info", () => {
     return app
   }
 
+  test("without Copilot entitlement returns configured provider models", async () => {
+    state.copilotToken = null
+    state.models = null
+    setProviders([{
+      id: "provider-only",
+      name: "Provider Only",
+      base_url: "https://example.invalid",
+      format: "openai",
+      api_key: "test-key",
+      model_patterns: JSON.stringify(["provider-model"]),
+      enabled: 1,
+      supports_reasoning: 0,
+      supports_models_endpoint: 0,
+      auth_style: null,
+      use_socks5: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }])
+
+    const res = await createApp().request("/api/connection-info")
+
+    expect(res.status).toBe(200)
+    const json = (await res.json()) as { models: string[] }
+    expect(json.models).toEqual(["provider-model"])
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   test("state.models undefined + cacheModels throws → returns { models: [] }", async () => {
     state.models = null
     fetchSpy.mockRejectedValueOnce(new Error("network error"))

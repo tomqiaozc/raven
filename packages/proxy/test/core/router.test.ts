@@ -73,6 +73,42 @@ describe("pickStrategy — fixture-driven", () => {
 })
 
 describe("pickStrategy — branch coverage assertions", () => {
+  test("Copilot unavailable rejects unmatched models but still allows custom providers", () => {
+    expect(
+      pickStrategy({
+        protocol: "openai",
+        model: "unmatched-model",
+        providers: [],
+        modelsCatalogIds: [],
+        copilotAvailable: false,
+      }),
+    ).toEqual({
+      kind: "reject",
+      status: 503,
+      errorType: "service_unavailable",
+      message: "Copilot is unavailable. Configure a matching third-party provider or enable a GitHub Copilot subscription.",
+    })
+
+    expect(
+      pickStrategy({
+        protocol: "openai",
+        model: "custom-model",
+        providers: [
+          compileProvider({
+            id: "custom",
+            name: "custom",
+            format: "openai",
+            enabled: true,
+            supports_reasoning: false,
+            patterns: ["custom-model"],
+          }),
+        ],
+        modelsCatalogIds: [],
+        copilotAvailable: false,
+      }),
+    ).toEqual({ kind: "ok", name: "custom-openai", providerId: "custom" })
+  })
+
   test("anthropic with anthropicBeta=context-1m-* selects 1m model alias", () => {
     const decision = pickStrategy({
       protocol: "anthropic",

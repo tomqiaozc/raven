@@ -64,6 +64,7 @@ export async function handleCompletion(c: Context) {
     providers: state.providers,
     modelsCatalogIds: modelsCatalog.map((m) => m.id),
     modelsCatalog,
+    copilotAvailable: state.copilotToken !== null,
   })
 
   if (decision.kind === "ok" && decision.name === "custom-openai") {

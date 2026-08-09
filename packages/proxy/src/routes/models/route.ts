@@ -107,7 +107,7 @@ modelRoutes.get("/", async (c) => {
       data: { path: "/v1/models", format: "openai", model: "models", stream: false, accountName, sessionId, clientName, clientVersion },
     })
 
-    if (!state.models) {
+    if (!state.models && state.copilotToken) {
       // This should be handled by startup logic, but as a fallback.
       await cacheModels()
     }

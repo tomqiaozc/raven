@@ -61,6 +61,31 @@ export const setupCopilotToken = async (timers: TimerFactory = defaultTimers) =>
 }
 
 /**
+ * Start Copilot support when the authenticated GitHub account is entitled to
+ * it. A valid GitHub login remains mandatory, but accounts without a Copilot
+ * subscription may continue in third-party-provider-only mode.
+ */
+export const setupOptionalCopilotToken = async (
+  timers: TimerFactory = defaultTimers,
+): Promise<boolean> => {
+  try {
+    await setupCopilotToken(timers)
+    return true
+  } catch (error) {
+    if (!(error instanceof HTTPError) || (error.status !== 401 && error.status !== 403)) {
+      throw error
+    }
+
+    state.copilotToken = null
+    logger.warn(
+      "GitHub account has no usable Copilot entitlement; continuing with third-party providers only",
+      { status: error.status },
+    )
+    return false
+  }
+}
+
+/**
  * Stop the active sentinel loop. Intended for graceful shutdown and tests.
  * No-op if no loop is active.
  */
@@ -83,23 +108,20 @@ export async function setupGitHubToken(
 
     if (githubToken && !options?.force) {
       state.githubToken = githubToken
-      await logUser()
-      return
+      try {
+        await logUser()
+        return
+      } catch (error) {
+        if (!requiresFreshGitHubLogin(error)) throw error
+        state.githubToken = null
+        logger.warn(
+          "Saved GitHub account is unavailable; starting a new device login",
+          { status: error.status },
+        )
+      }
     }
 
-    logger.info("Not logged in, getting new access token")
-    const response = await getDeviceCode()
-    logger.debug("Device code response received")
-
-    logger.info(
-      `Please enter the code "${response.user_code}" in ${response.verification_uri}`,
-    )
-
-    const token = await pollAccessToken(response)
-    await writeGithubToken(token)
-    state.githubToken = token
-
-    await logUser()
+    await loginWithGitHubDeviceFlow()
   } catch (error) {
     if (error instanceof HTTPError) {
       logger.error("Failed to get GitHub token (HTTP)", { error: String(error) })
@@ -109,6 +131,28 @@ export async function setupGitHubToken(
     logger.error("Failed to get GitHub token", { error: String(error) })
     throw error
   }
+}
+
+function requiresFreshGitHubLogin(error: unknown): error is HTTPError {
+  if (!(error instanceof HTTPError)) return false
+  if (error.status === 401) return true
+  return error.status === 403 &&
+    error.responseBody.toLowerCase().includes("account was suspended")
+}
+
+async function loginWithGitHubDeviceFlow(): Promise<void> {
+  logger.info("Not logged in, getting new access token")
+  const response = await getDeviceCode()
+  logger.debug("Device code response received")
+
+  logger.info(
+    `Please enter the code "${response.user_code}" in ${response.verification_uri}`,
+  )
+
+  const token = await pollAccessToken(response)
+  state.githubToken = token
+  await logUser()
+  await writeGithubToken(token)
 }
 
 async function logUser() {

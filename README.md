@@ -103,7 +103,8 @@ Claude 模型默认走原生 Anthropic `/v1/messages` 协议直连 Copilot，跳
 
 - [Bun](https://bun.sh/) ≥ 1.3
 - Git
-- GitHub 账号（需有 [Copilot](https://github.com/features/copilot) 订阅）
+- 有效的 GitHub 账号（首次启动时必须登录）
+- [Copilot](https://github.com/features/copilot) 订阅为可选；无订阅时可使用第三方 Provider，未匹配第三方路由的请求将返回 503
 
 ### 1. 克隆并安装
 

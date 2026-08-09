@@ -40,7 +40,12 @@ vi.mock("../../src/lib/utils", () => ({
 }))
 
 // Import AFTER mock is registered
-const { setupGitHubToken, setupCopilotToken, stopCopilotTokenSentinel } = await import("../../src/lib/token")
+const {
+  setupGitHubToken,
+  setupCopilotToken,
+  setupOptionalCopilotToken,
+  stopCopilotTokenSentinel,
+} = await import("../../src/lib/token")
 
 // ---------------------------------------------------------------------------
 // State save/restore + fetch spy
@@ -182,6 +187,39 @@ describe("setupGitHubToken", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1) // only getGitHubUser
   })
 
+  test("suspended cached account triggers a fresh device login", async () => {
+    await fs.writeFile(tmpTokenPath, "suspended-token")
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ message: "Sorry. Your account was suspended" }),
+        { status: 403, headers: { "content-type": "application/json" } },
+      ),
+    )
+    mockDeviceCodeResponse()
+    mockPollResponse("gho_reauthenticated")
+    mockUserResponse("active-user")
+
+    await setupGitHubToken()
+
+    expect(state.githubToken).toBe("gho_reauthenticated")
+    await expect(fs.readFile(tmpTokenPath, "utf8")).resolves.toBe("gho_reauthenticated")
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
+  })
+
+  test("unrelated GitHub 403 remains fail-fast", async () => {
+    await fs.writeFile(tmpTokenPath, "existing-token")
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+
+    await expect(setupGitHubToken()).rejects.toMatchObject({ status: 403 })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await expect(fs.readFile(tmpTokenPath, "utf8")).resolves.toBe("existing-token")
+  })
+
   test("token file empty → runs device flow", async () => {
     await fs.writeFile(tmpTokenPath, "")
     mockDeviceCodeResponse()
@@ -297,5 +335,39 @@ describe("setupCopilotToken", () => {
 
     // Second stop is a no-op
     expect(() => stopCopilotTokenSentinel()).not.toThrow()
+  })
+})
+
+describe("setupOptionalCopilotToken", () => {
+  test.each([401, 403])(
+    "returns false and leaves Copilot disabled when GitHub reports status %i",
+    async (status) => {
+      const fakeTimers = createFakeTimers()
+      fetchSpy.mockResolvedValueOnce(
+        new Response("Copilot subscription required", { status }),
+      )
+
+      await expect(setupOptionalCopilotToken(fakeTimers)).resolves.toBe(false)
+
+      expect(state.copilotToken).toBeNull()
+      expect(fakeTimers.timers).toHaveLength(0)
+    },
+  )
+
+  test("returns true when Copilot token setup succeeds", async () => {
+    const fakeTimers = createFakeTimers()
+    mockCopilotTokenResponse("optional-jwt", 1500)
+
+    await expect(setupOptionalCopilotToken(fakeTimers)).resolves.toBe(true)
+    expect(state.copilotToken).toBe("optional-jwt")
+  })
+
+  test("does not hide non-entitlement upstream failures", async () => {
+    const fakeTimers = createFakeTimers()
+    fetchSpy.mockResolvedValueOnce(new Response("server error", { status: 500 }))
+
+    await expect(setupOptionalCopilotToken(fakeTimers)).rejects.toMatchObject({
+      status: 500,
+    })
   })
 })

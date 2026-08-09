@@ -191,9 +191,10 @@ function StepCopilot() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Raven proxies requests through your GitHub Copilot subscription. You
-        need to authenticate via GitHub&apos;s Device Flow — this happens in
-        your terminal, not in the browser.
+        Raven uses GitHub Device Flow for account authentication. A Copilot
+        subscription enables the built-in upstream; without one, you can use
+        matching third-party providers. Authentication happens in your terminal,
+        not in the browser.
       </p>
 
       <div className="rounded-card bg-secondary p-4 space-y-3">

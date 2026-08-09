@@ -58,6 +58,35 @@ afterEach(() => {
 // ===========================================================================
 
 describe("GET /v1/models (route wrapper)", () => {
+  test("without Copilot entitlement returns provider models without fetching Copilot", async () => {
+    state.copilotToken = null
+    state.models = null
+    setProviders([{
+      id: "provider-only",
+      name: "Provider Only",
+      base_url: "https://example.invalid",
+      format: "openai",
+      api_key: "test-key",
+      model_patterns: JSON.stringify(["provider-model"]),
+      enabled: 1,
+      supports_reasoning: 0,
+      supports_models_endpoint: 0,
+      auth_style: null,
+      use_socks5: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    }])
+
+    const app = new Hono()
+    app.route("/v1/models", modelRoutes)
+    const res = await app.request("/v1/models")
+
+    expect(res.status).toBe(200)
+    const json = (await res.json()) as { data: Array<{ id: string }> }
+    expect(json.data.map((model) => model.id)).toEqual(["provider-model"])
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   test("returns model list in OpenAI format", async () => {
     const app = new Hono()
     app.route("/v1/models", modelRoutes)

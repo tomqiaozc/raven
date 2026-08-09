@@ -49,6 +49,7 @@ export const handleResponses = async (c: Context) => {
     model,
     providers: state.providers,
     modelsCatalogIds: state.models?.data?.map((m) => m.id) ?? [],
+    copilotAvailable: state.copilotToken !== null,
   })
 
   if (decision.kind === "reject") {

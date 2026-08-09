@@ -8,7 +8,7 @@ import { ensurePaths } from "./lib/paths"
 import { runMigrations } from "./lib/migration"
 import { DIR_MODE } from "./lib/app-dirs"
 import { state } from "./lib/state"
-import { setupGitHubToken, setupCopilotToken } from "./lib/token"
+import { setupGitHubToken, setupOptionalCopilotToken } from "./lib/token"
 import { cacheModels, cacheVersions, cacheOptimizations, cacheProviders, cacheServerTools, cacheIPWhitelist, cacheCorsSettings, cacheSocks5Settings } from "./lib/utils"
 import { startBridge, stopBridge } from "./lib/socks5-bridge"
 import { initDatabase } from "./db/requests"
@@ -96,19 +96,23 @@ await setupGitHubToken()
 const githubToken = state.githubToken!
 logger.info("GitHub token loaded")
 
-// 5. Copilot JWT (initial fetch + auto-refresh via setInterval)
-await setupCopilotToken()
-logger.info("Copilot JWT acquired, auto-refresh started")
+// 5. Copilot JWT (optional; GitHub login remains required)
+const copilotAvailable = await setupOptionalCopilotToken()
+if (copilotAvailable) {
+  logger.info("Copilot JWT acquired, auto-refresh started")
+}
 
 // 6. Cache models
-try {
-  await cacheModels()
-  const modelCount = state.models?.data?.length ?? 0
-  logger.info(`Cached ${modelCount} models from Copilot API`)
-} catch (err) {
-  logger.warn("Failed to cache models, will retry on first request", {
-    error: err instanceof Error ? err.message : String(err),
-  })
+if (copilotAvailable) {
+  try {
+    await cacheModels()
+    const modelCount = state.models?.data?.length ?? 0
+    logger.info(`Cached ${modelCount} models from Copilot API`)
+  } catch (err) {
+    logger.warn("Failed to cache models, will retry on first request", {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
 }
 
 // 7. Build app with all dependencies wired

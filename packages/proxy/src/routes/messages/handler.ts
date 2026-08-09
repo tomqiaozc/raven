@@ -93,6 +93,7 @@ export async function handleCompletion(c: Context) {
     anthropicBeta,
     providers: state.providers,
     modelsCatalogIds: state.models?.data?.map((m) => m.id) ?? [],
+    copilotAvailable: state.copilotToken !== null,
   })
 
   // Defensive guard: pickStrategy currently never rejects for the

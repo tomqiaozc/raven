@@ -46,6 +46,8 @@ export interface RouterInput {
   providers: CompiledProvider[]
   /** Catalog of Copilot models exposed today (state.models?.data ids). */
   modelsCatalogIds: string[]
+  /** Whether startup acquired a usable Copilot token. Defaults to true for callers/tests. */
+  copilotAvailable?: boolean
   /**
    * Full catalog entries for endpoint-aware openai routing.
    * When omitted, openai path never selects chat-via-responses (legacy-safe).
@@ -66,6 +68,14 @@ const REJECT_RESPONSES_TO_CUSTOM: StrategyDecision = {
   status: 400,
   errorType: "invalid_request_error",
   message: "OpenAI Responses API cannot be routed to custom upstreams.",
+}
+
+const REJECT_COPILOT_UNAVAILABLE: StrategyDecision = {
+  kind: "reject",
+  status: 503,
+  errorType: "service_unavailable",
+  message:
+    "Copilot is unavailable. Configure a matching third-party provider or enable a GitHub Copilot subscription.",
 }
 
 interface ProviderMatch {
@@ -115,8 +125,15 @@ function nativeSupported(model: string, modelsCatalogIds: string[]): boolean {
 }
 
 export function pickStrategy(input: RouterInput): StrategyDecision {
-  const { protocol, model, anthropicBeta, providers, modelsCatalogIds, modelsCatalog } =
-    input
+  const {
+    protocol,
+    model,
+    anthropicBeta,
+    providers,
+    modelsCatalogIds,
+    modelsCatalog,
+    copilotAvailable = true,
+  } = input
 
   if (protocol === "anthropic") {
     const normalisedModel = translateModelName(model, anthropicBeta ?? null)
@@ -131,6 +148,7 @@ export function pickStrategy(input: RouterInput): StrategyDecision {
           : "custom-openai"
       return { kind: "ok", name, providerId: matched.provider.id }
     }
+    if (!copilotAvailable) return REJECT_COPILOT_UNAVAILABLE
     if (nativeSupported(catalogModel, modelsCatalogIds)) {
       return { kind: "ok", name: "copilot-native" }
     }
@@ -145,6 +163,7 @@ export function pickStrategy(input: RouterInput): StrategyDecision {
       }
       return { kind: "ok", name: "custom-openai", providerId: matched.provider.id }
     }
+    if (!copilotAvailable) return REJECT_COPILOT_UNAVAILABLE
     const entry = modelsCatalog?.find((m) => m.id === model)
     if (isResponsesOnly(entry?.supported_endpoints)) {
       return { kind: "ok", name: "copilot-chat-via-responses" }
@@ -157,5 +176,6 @@ export function pickStrategy(input: RouterInput): StrategyDecision {
   if (matched) {
     return REJECT_RESPONSES_TO_CUSTOM
   }
+  if (!copilotAvailable) return REJECT_COPILOT_UNAVAILABLE
   return { kind: "ok", name: "copilot-responses" }
 }

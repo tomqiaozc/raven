@@ -126,6 +126,25 @@ afterEach(() => {
 // ===========================================================================
 
 describe("handleCompletion (non-streaming)", () => {
+  test("returns 503 instead of calling Copilot when no entitlement is available", async () => {
+    state.copilotToken = null
+    state.models = null
+
+    const res = await makeApp().request(
+      req({ model: "gpt-4o", messages: [{ role: "user", content: "hi" }] }),
+    )
+
+    expect(res.status).toBe(503)
+    await expect(res.json()).resolves.toEqual({
+      error: {
+        message:
+          "Copilot is unavailable. Configure a matching third-party provider or enable a GitHub Copilot subscription.",
+        type: "service_unavailable",
+      },
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   test("returns JSON response with correct shape", async () => {
     fetchSpy.mockResolvedValueOnce(mockFetchJson(makeNonStreamResponse()))
 

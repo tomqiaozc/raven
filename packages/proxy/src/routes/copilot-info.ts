@@ -27,6 +27,9 @@ export function createCopilotInfoRoute(_deps: CopilotInfoDeps): Hono {
 
   // /copilot/models — read from global state.models
   app.get("/copilot/models", async (c) => {
+    if (!state.copilotToken) {
+      return c.json({ error: "Copilot is unavailable for this GitHub account" }, 503)
+    }
     try {
       const refresh = c.req.query("refresh") === "true"
       if (refresh || !state.models) {

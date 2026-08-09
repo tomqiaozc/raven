@@ -69,7 +69,7 @@ export function createConnectionInfoRoute(
     const resolvedBaseUrl = baseUrl || `http://localhost:${port}`
 
     // Ensure models are cached
-    if (!state.models) {
+    if (!state.models && state.copilotToken) {
       try {
         await cacheModels()
       } catch {

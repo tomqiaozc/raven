@@ -59,6 +59,21 @@ afterEach(() => {
 // ===========================================================================
 
 describe("GET /copilot/models", () => {
+  test("returns 503 without a Copilot entitlement", async () => {
+    state.copilotToken = null
+    state.models = null
+    const app = new Hono()
+    app.route("/", createCopilotInfoRoute({ githubToken: "tok" }))
+
+    const res = await app.request("/copilot/models")
+
+    expect(res.status).toBe(503)
+    await expect(res.json()).resolves.toEqual({
+      error: "Copilot is unavailable for this GitHub account",
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   test("returns cached models when available", async () => {
     const app = new Hono()
     app.route("/", createCopilotInfoRoute({ githubToken: "tok" }))
